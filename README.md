@@ -20,14 +20,34 @@ A real-time multiplayer mini-games platform built with React and Node.js.
 ## 🚀 Quick Start
 
 ### Prerequisites
+- Git
 - Node.js (v14 or higher)
 - npm or yarn
 
-### Installation
+### 🎯 **Option 1: One-Click Setup (Recommended)**
+
+**For Windows Users:**
+1. Download the files from this repository
+2. Double-click `RUN-FROM-GITHUB.bat`
+3. Wait for automatic setup (2-3 minutes)
+4. Your app will open automatically in the browser
+
+**For PowerShell Users:**
+1. Download the files from this repository
+2. Right-click `RUN-FROM-GITHUB.ps1` and select "Run with PowerShell"
+3. Wait for automatic setup (2-3 minutes)
+4. Your app will open automatically in the browser
+
+**Create Desktop Shortcut:**
+1. Run `CREATE-DESKTOP-SHORTCUT.bat` once
+2. A shortcut will be created on your desktop
+3. Double-click the shortcut anytime to run ShareNPlay
+
+### 🔧 **Option 2: Manual Setup**
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/ShareNPlay.git
+   git clone https://github.com/Rajketha/ShareNPlay.git
    cd ShareNPlay
    ```
 
@@ -77,7 +97,7 @@ start-frontend.bat
 
 ## 🎮 How to Play
 
-1. **Open the app** in your browser at `http://localhost:3000`
+1. **Open the app** in your browser at `http://localhost:3002`
 2. **Choose your role:**
    - **Sender:** Creates the game and selects which mini-game to play
    - **Receiver:** Joins the game using the provided code
@@ -139,7 +159,7 @@ ShareNPlay/
 - CORS enabled for all localhost origins
 - Game logic and state management
 
-### Frontend (Port 3000)
+### Frontend (Port 3002)
 - React with hooks
 - Socket.IO client
 - Responsive design
