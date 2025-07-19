@@ -314,11 +314,11 @@ io.on('connection', (socket) => {
       } else {
         // Start next round
         game.currentRound++;
-        setTimeout(() => {
+        setTimeout(() => { 
           io.to(player.roomCode).emit('nextRound', {
             round: game.currentRound,
             maxRounds: game.maxRounds
-          });
+          }); 
         }, 2000);
       }
     }
