@@ -1,10 +1,20 @@
 # ShareNPlay 🎮
 
-A real-time multiplayer mini-games platform built with React and Node.js.
+A real-time multiplayer mini-games platform with **file sharing capabilities** built with React and Node.js.
 
 ## 🎯 Features
 
 - **Real-time multiplayer gaming** with Socket.IO
+- **📁 File Sharing System:**
+  - Upload files with custom codes
+  - Share files via QR codes
+  - Download files using codes
+  - File info display
+  - Support for all file types
+- **🎲 Truth or Dare System:**
+  - Random dare generation
+  - Multiple dare categories
+  - API endpoints for dare challenges
 - **6 exciting mini-games:**
   - 🪨 Rock Paper Scissors
   - 👆 Tap War
@@ -16,6 +26,35 @@ A real-time multiplayer mini-games platform built with React and Node.js.
 - **Score tracking** and winner/loser animations
 - **Sender game selection** - choose which game to play
 - **Minimal, clean UI** for both sender and receiver
+- **📱 Mobile responsive design** with touch-friendly controls
+- **🔗 QR Code generation** for easy mobile access
+
+## 📁 File Sharing Features
+
+### Upload Files
+- **Drag & drop** or click to upload any file type
+- **Custom codes** for easy sharing
+- **File info display** (name, size, type)
+- **QR code generation** with direct download links
+
+### Share Files
+- **Generate QR codes** that link directly to download page
+- **Copy direct links** for easy sharing
+- **Mobile-optimized** download interface
+- **File preview** before downloading
+
+### Download Files
+- **Enter code** to access files
+- **Direct download** with one click
+- **File information** display
+- **Mobile-friendly** interface
+
+### API Endpoints
+- `POST /upload` - Upload files with codes
+- `GET /fileinfo/:code` - Get file information
+- `GET /download/:code` - Download files
+- `GET /dare-categories` - Get available dare categories
+- `GET /random-dare/:category` - Get random dare
 
 ## 🚀 Quick Start
 
@@ -97,6 +136,7 @@ start-frontend.bat
 
 ## 🎮 How to Play
 
+### Mini-Games
 1. **Open the app** in your browser at `http://localhost:3002`
 2. **Choose your role:**
    - **Sender:** Creates the game and selects which mini-game to play
@@ -104,6 +144,20 @@ start-frontend.bat
 3. **Wait for both players** to join - game starts automatically
 4. **Play 3 rounds** of the selected mini-game
 5. **See final scores** and winner/loser animations
+
+### File Sharing
+1. **Upload Files:**
+   - Drag & drop files or click to upload
+   - Enter a custom code for sharing
+   - Get QR code and direct link for sharing
+2. **Share Files:**
+   - Share QR code with others
+   - Or share the direct download link
+   - Mobile users can scan QR code for instant access
+3. **Download Files:**
+   - Enter the file code on the download page
+   - View file information before downloading
+   - Click download to get the file
 
 ## 🏗️ Project Structure
 
@@ -164,6 +218,24 @@ ShareNPlay/
 - Socket.IO client
 - Responsive design
 - Game UI components
+
+## 📱 Mobile Access
+
+### Local Network Access
+1. **Find your computer's IP address:**
+   ```bash
+   ipconfig | findstr "IPv4"
+   ```
+2. **Access from mobile devices:**
+   - Frontend: `http://YOUR_IP:3002`
+   - Backend: `http://YOUR_IP:5000`
+3. **QR codes automatically use your IP address** for mobile access
+
+### Troubleshooting Mobile Access
+- **Router Settings:** Disable "Client Isolation" or "AP Isolation"
+- **Windows Firewall:** Allow Node.js through firewall
+- **Network Discovery:** Enable network discovery in Windows
+- **Same Network:** Ensure phone and computer are on same WiFi network
 
 ## 🚀 Deployment
 
