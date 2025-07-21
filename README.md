@@ -78,6 +78,7 @@ This project includes a **portable Node.js** setup, so you do NOT need to instal
 3. **Run the portable setup script**
    - Double-click `CREATE-PORTABLE-SHORTCUT.bat`.
    - This will:
+     - **Kill any running Node.js servers** to avoid conflicts.
      - Install all backend and frontend dependencies using the included portable Node.js and npm.
      - Start both backend and frontend servers in new windows.
      - Pause after each step so you can see progress and errors.

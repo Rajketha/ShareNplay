@@ -1,4 +1,14 @@
 @echo off
+REM === Kill any running Node.js servers ===
+echo Stopping any running Node.js servers...
+taskkill /F /IM node.exe 2>nul
+if %errorlevel% equ 0 (
+    echo ✓ Node.js processes stopped
+) else (
+    echo No Node.js processes found
+)
+echo.
+
 REM === Set up paths ===
 set NODE_EXE=%~dp0portable-node\node.exe
 set NPM_CLI=%~dp0portable-node\node_modules\npm\bin\npm-cli.js
