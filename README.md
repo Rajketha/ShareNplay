@@ -89,6 +89,14 @@ This project includes a **portable Node.js** setup, so you do NOT need to instal
 
 ---
 
+## Included Frontend Build Output
+
+- The `frontend/build/` directory is included in this repository.
+- You can use this folder for static deployment (e.g., GitHub Pages, Netlify, or any static server).
+- If you only want to serve the pre-built frontend, simply use the contents of `frontend/build/`.
+
+---
+
 ## Notes
 
 - **No need to install Node.js or npm!**
