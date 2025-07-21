@@ -1,0 +1,28 @@
+ 
+[DEBUG] NODE_DIR=C:\ShareNPlay\portable-node 
+[DEBUG] NODE_EXE=C:\ShareNPlay\portable-node\node.exe 
+[DEBUG] NPM_CMD=C:\ShareNPlay\portable-node\npm.cmd 
+Installing backend dependencies... 
+[DEBUG] Current dir before cd backend: C:\ShareNPlay 
+[DEBUG] Current dir after cd backend: C:\ShareNPlay\backend 
+ Volume in drive C is Windows
+ Volume Serial Number is A238-DD90
+
+ Directory of C:\ShareNPlay\backend
+
+07/20/2025  04:07 PM    <DIR>          .
+07/21/2025  06:32 PM    <DIR>          ..
+07/21/2025  06:32 PM    <DIR>          node_modules
+07/21/2025  06:32 PM            61,246 package-lock.json
+07/20/2025  04:12 PM               580 package.json
+07/20/2025  06:45 PM            23,618 server.js
+07/20/2025  04:04 PM             1,125 test-backend.js
+               4 File(s)         86,569 bytes
+               3 Dir(s)  111,499,276,288 bytes free
+
+up to date, audited 141 packages in 2s
+
+19 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
