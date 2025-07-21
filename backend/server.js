@@ -528,12 +528,16 @@ io.on('connection', (socket) => {
       console.log('Emitting roundResult:', JSON.stringify(roundResultPayload));
       io.to(player.roomCode).emit('roundResult', roundResultPayload);
       
-      // Check if game is over
-      if (game.currentRound >= game.maxRounds) {
+      // Check if a player has reached 2 points, or if max rounds reached
+      if (
+        game.scores[player1] >= 2 ||
+        game.scores[player2] >= 2 ||
+        game.currentRound >= game.maxRounds
+      ) {
         const finalScores = {
           player1: { score: game.scores[player1] },
           player2: { score: game.scores[player2] },
-          winner: game.scores[player1] > game.scores[player2] ? 'player1' : 
+          winner: game.scores[player1] > game.scores[player2] ? 'player1' :
                  game.scores[player2] > game.scores[player1] ? 'player2' : 'tie'
         };
         io.to(player.roomCode).emit('gameEnd', {
