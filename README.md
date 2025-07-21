@@ -58,81 +58,79 @@ A real-time multiplayer mini-games platform with **file sharing capabilities** b
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Git
-- Node.js (v14 or higher)
-- npm or yarn
+## Portable Node.js Setup (Windows)
 
-### 🎯 **Option 1: One-Click Setup (Recommended)**
+This project includes a **portable Node.js** setup, so you do NOT need to install Node.js or npm on your computer. Everything you need is included in the repository.
 
-**For Windows Users:**
-1. Download the files from this repository
-2. Double-click `RUN-FROM-GITHUB.bat`
-3. Wait for automatic setup (2-3 minutes)
-4. Your app will open automatically in the browser
+---
 
-**For PowerShell Users:**
-1. Download the files from this repository
-2. Right-click `RUN-FROM-GITHUB.ps1` and select "Run with PowerShell"
-3. Wait for automatic setup (2-3 minutes)
-4. Your app will open automatically in the browser
+## Quick Start (Windows)
 
-**Create Desktop Shortcut:**
-1. Run `CREATE-DESKTOP-SHORTCUT.bat` once
-2. A shortcut will be created on your desktop
-3. Double-click the shortcut anytime to run ShareNPlay
+1. **Download or clone the repository**
+   - Download as ZIP and extract, or use:
+     ```
+     git clone https://github.com/Rajketha/ShareNPlay.git
+     ```
 
-### 🔧 **Option 2: Manual Setup**
+2. **Open the project folder**
+   - Navigate to the extracted or cloned folder (e.g., `ShareNPlay`).
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Rajketha/ShareNPlay.git
-   cd ShareNPlay
-   ```
+3. **Run the portable setup script**
+   - Double-click `CREATE-PORTABLE-SHORTCUT.bat`.
+   - This will:
+     - Install all backend and frontend dependencies using the included portable Node.js and npm.
+     - Start both backend and frontend servers in new windows.
+     - Pause after each step so you can see progress and errors.
 
-2. **Install dependencies:**
-   ```bash
-   # Install backend dependencies
-   cd backend
-   npm install
-   
-   # Install frontend dependencies
-   cd ../frontend
-   npm install
-   ```
+4. **Access the app**
+   - Open your browser and go to:
+     - Frontend: [http://localhost:3002](http://localhost:3002)
+     - Backend API: [http://localhost:5000](http://localhost:5000)
 
-3. **Start the servers:**
-   ```bash
-   # Start backend (in backend directory)
-   cd backend
-   npm start
-   
-   # Start frontend (in frontend directory, new terminal)
-   cd frontend
-   npm start
-   ```
+---
 
-### Alternative: Use the provided scripts
+## Notes
 
-**Windows:**
-```bash
-# Start both servers
-start-both.bat
+- **No need to install Node.js or npm!**
+- The portable Node.js binary is included in `portable-node/`.
+- If you see any errors, check the output in the command windows for details.
+- If you want to update dependencies, just re-run the batch file.
+- For advanced users: you can also run the backend and frontend manually using the included portable Node.js.
 
-# Or start individually
-start-backend.bat
-start-frontend.bat
+---
+
+## For Developers (Manual Commands)
+
+If you want to run commands manually, use the included portable Node.js:
+
+```
+# Install backend dependencies
+portable-node\node.exe portable-node\node_modules\npm\bin\npm-cli.js install --prefix backend
+
+# Install frontend dependencies
+portable-node\node.exe portable-node\node_modules\npm\bin\npm-cli.js install --prefix frontend
+
+# Start backend
+cd backend
+..\portable-node\node.exe ..\portable-node\node_modules\npm\bin\npm-cli.js start
+
+# Start frontend
+cd ../frontend
+..\portable-node\node.exe ..\portable-node\node_modules\npm\bin\npm-cli.js start
 ```
 
-**PowerShell:**
-```bash
-# Start both servers
-.\start-both.ps1
+---
 
-# Or start individually
-.\start-backend.ps1
-.\start-frontend.ps1
-```
+## Troubleshooting
+
+- If you see a warning about file size when cloning or pulling, it's safe to ignore as long as the files are present.
+- If you have issues with antivirus or permissions, try running the batch file as Administrator.
+- For non-Windows users: You will need to install Node.js manually and use the standard npm commands.
+
+---
+
+## License
+See LICENSE file for details.
 
 ## 🎮 How to Play
 
