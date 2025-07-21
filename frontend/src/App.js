@@ -5,7 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import './index.css';
 import confetti from 'canvas-confetti';
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = 'http://192.168.1.38:5000';
 const FEATURES = [
   { icon: '🔒', text: 'Secure 6-digit code file sharing' },
   { icon: '📱', text: 'QR code for easy sharing' },
@@ -17,6 +17,29 @@ const FEATURES = [
   { icon: '🌙', text: 'Glassmorphism & animated illusion theme - NEW!' },
 ];
 
+// Add this mapping at the top of the file (after imports)
+const gameTypeMap = {
+  'rock-paper-scissors': 'rockPaperScissors',
+  'tap-war': 'tapWar',
+  'quick-quiz': 'quickQuiz',
+  'emoji-memory': 'emojiMemory',
+  'typing-speed': 'typingSpeed',
+  'reaction-time': 'reactionTime'
+};
+
+// Suppress noisy WebSocket warning from socket.io upgrade
+const originalConsoleError = console.error;
+console.error = function (...args) {
+  if (
+    typeof args[0] === 'string' &&
+    args[0].includes('WebSocket is closed before the connection is established')
+  ) {
+    // Suppress this specific warning
+    return;
+  }
+  originalConsoleError.apply(console, args);
+};
+
 function App() {
   const [view, setView] = useState('home');
   const [file, setFile] = useState(null);
@@ -27,7 +50,7 @@ function App() {
   const [playerType, setPlayerType] = useState('');
   const [dares, setDares] = useState({});
   const [round, setRound] = useState(1);
-  const [scores, setScores] = useState({ sender: 0, receiver: 0 });
+  const [scores, setScores] = useState({ player1: 0, player2: 0 });
   const [gameResult, setGameResult] = useState(null);
   const [gameWinner, setGameWinner] = useState(null);
   const [action, setAction] = useState('');
@@ -46,6 +69,15 @@ function App() {
   const [selectedGame, setSelectedGame] = useState('');
   // Add state for waiting debug info
   const [waitingHint, setWaitingHint] = useState('');
+  // Add mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileInstructions, setShowMobileInstructions] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  // In your App component, add a state for the current game
+  const [currentGame, setCurrentGame] = useState('');
+  // Add state for playerMap
+  const [playerMap, setPlayerMap] = useState({});
+  const [playerRole, setPlayerRole] = useState(null); // 'player1' or 'player2'
 
   // Fetch dare categories on mount
   useEffect(() => {
@@ -54,46 +86,162 @@ function App() {
     });
   }, []);
 
+  // Handle URL parameters for direct receiver access
   useEffect(() => {
-    const s = io(BACKEND_URL);
+    const urlParams = new URLSearchParams(window.location.search);
+    const codeParam = urlParams.get('code');
+    const viewParam = urlParams.get('view');
+    
+    if (codeParam && viewParam === 'receiver') {
+      setReceiverCode(codeParam);
+      setView('receiver');
+      // Automatically fetch file info for the code
+      if (codeParam.length === 6) {
+        axios.get(`${BACKEND_URL}/fileinfo/${codeParam}`)
+          .then(res => {
+            setReceiverFileInfo(res.data);
+            setReceiverError('');
+            // Show success message for QR code access
+            setTimeout(() => {
+              alert('🎉 Welcome! File found and ready to download. Enter your dare to join the game!');
+            }, 500);
+          })
+          .catch(error => {
+            console.error('Error fetching file info:', error);
+            setReceiverError('No file found for this code. Please check the code and try again.');
+          });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    console.log('🔌 Attempting to connect to backend:', BACKEND_URL);
+    
+    const s = io(BACKEND_URL, {
+      transports: ['websocket', 'polling'],
+      timeout: 30000,
+      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      maxReconnectionAttempts: 10
+    });
     setSocket(s);
     
-    // Connection events
+    // Connection events with enhanced debugging
     s.on('connect', () => {
-      console.log('Connected to backend');
+      console.log('✅ Connected to backend from:', navigator.userAgent);
+      console.log('📱 Is mobile:', /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+      console.log('🔗 Socket ID:', s.id);
+      console.log('🌐 Transport:', s.io.engine.transport.name);
+      setConnectionStatus('connected');
+      setError('');
     });
     
-    s.on('disconnect', () => {
-      console.log('Disconnected from backend');
+    s.on('connect_error', (error) => {
+      console.error('❌ Connection error:', error);
+      console.error('🔍 Error details:', {
+        message: error.message,
+        description: error.description,
+        context: error.context,
+        type: error.type
+      });
+      setConnectionStatus('error');
+      setError(`Connection failed: ${error.message}`);
+    });
+    
+    s.on('disconnect', (reason) => {
+      console.log('❌ Disconnected from backend:', reason);
+      setConnectionStatus('disconnected');
+    });
+    
+    s.on('reconnect', (attemptNumber) => {
+      console.log('🔄 Reconnected after', attemptNumber, 'attempts');
+      setConnectionStatus('connected');
+      setError('');
+    });
+    
+    s.on('reconnect_error', (error) => {
+      console.error('🔄 Reconnection error:', error);
+    });
+    
+    s.on('reconnect_failed', () => {
+      console.error('🔄 Reconnection failed after all attempts');
+      setConnectionStatus('error');
+      setError('Failed to reconnect to server');
     });
     
     s.on('playerJoined', ({ playerType, dare }) => {
       console.log('Player joined:', playerType, dare);
     });
     
-    s.on('gameStart', ({ dares, round, gameData, game }) => {
-      console.log('Game started event received:', { dares, round, gameData, game });
-      setDares(dares); 
-      setRound(round); 
+    s.on('gameCreated', ({ roomCode, gameType }) => {
+      console.log('Game created:', { roomCode, gameType });
+    });
+    
+    s.on('gameJoined', ({ roomCode, gameType }) => {
+      console.log('Game joined:', { roomCode, gameType });
+    });
+    
+    s.on('error', (error) => {
+      console.error('Socket error:', error);
+      setError(error.message || 'Game error occurred');
+    });
+    
+    s.on('gameStart', ({ gameType, round, maxRounds, playerMap, gameData, dares }) => {
+      const mappedGame = gameTypeMap[gameType] || gameType;
+      setCurrentGame(mappedGame);
+      setDares(dares || {});
+      setRound(round || 1);
       setView('game');
-      setScores({ sender: 0, receiver: 0 });
+      setScores({ player1: 0, player2: 0 });
       setAction('');
       setGameResult(null);
       setGameWinner(null);
       setGameData(gameData);
       // Update fileInfo with game suggestion
-      setFileInfo(prev => prev ? { ...prev, gameSuggestion: game } : { gameSuggestion: game });
-      console.log('Game started:', game, gameData); // Debug log
+      setFileInfo(prev => prev ? { ...prev, gameSuggestion: { game: mappedGame } } : { gameSuggestion: { game: mappedGame } });
+      console.log('Game started:', mappedGame, gameData); // Debug log
+      if (!playerRole) {
+        if (playerMap && socket && socket.id) {
+          if (socket.id === playerMap.player1) setPlayerRole('player1');
+          else if (socket.id === playerMap.player2) setPlayerRole('player2');
+        } else if (playerType === 'sender') {
+          setPlayerRole('player1');
+        } else if (playerType === 'receiver') {
+          setPlayerRole('player2');
+        }
+      }
     });
-    s.on('roundResult', ({ result, scores, round }) => {
-      console.log('Round result received:', { result, scores, round });
-      setGameResult({ winner: result.winner, reason: result.reason });
+    s.on('roundResult', ({ result, scores, round, playerMap }) => {
+      if (!result || !scores || !round) {
+        console.error('Invalid roundResult payload:', { result, scores, round, playerMap });
+        setGameResult(null);
+        return;
+      }
+      setGameResult(result);
       setScores(scores);
       setRound(round);
-      setAction(''); // Reset action for next round
-      setTimeout(() => setGameResult(null), 2000);
+      setPlayerMap(playerMap);
+      // Determine playerRole on first roundResult
+      if (!playerRole && playerMap && socket && socket.id && playerMap.player1 && playerMap.player2) {
+        if (socket.id === playerMap.player1) setPlayerRole('player1');
+        else if (socket.id === playerMap.player2) setPlayerRole('player2');
+      }
     });
     s.on('gameEnd', ({ winner, finalScores, scores, dares }) => {
+      // If playerRole is not set, try to infer it from playerMap and socket.id, or fallback to playerType
+      if (!playerRole) {
+        if (playerMap && socket && socket.id) {
+          if (socket.id === playerMap.player1) setPlayerRole('player1');
+          else if (socket.id === playerMap.player2) setPlayerRole('player2');
+        } else if (playerType === 'sender') {
+          setPlayerRole('player1');
+        } else if (playerType === 'receiver') {
+          setPlayerRole('player2');
+        }
+      }
       console.log('Game end received:', { winner, finalScores, scores, dares });
       setGameWinner({ winner, finalScores, scores, dares });
       setView('end');
@@ -114,7 +262,18 @@ function App() {
       const timer = setTimeout(() => {
         setWaitingHint('Still waiting? Make sure both players joined with the same code and entered a dare.');
       }, 7000);
-      return () => clearTimeout(timer);
+      
+      // Add mobile-specific hints
+      const mobileTimer = setTimeout(() => {
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+          setWaitingHint('📱 Mobile user detected! Make sure the desktop user has also joined the game with the same code.');
+        }
+      }, 3000);
+      
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(mobileTimer);
+      };
     }
   }, [view]);
 
@@ -150,7 +309,7 @@ function App() {
       const res = await axios.get(`${BACKEND_URL}/fileinfo/${receiverCode}`);
       setFileInfo(res.data);
       socket.emit('joinRoom', { code: receiverCode, playerType: 'receiver', dare: receiverDare });
-      setPlayerType('receiver');
+      setPlayerType('receiver'); // <-- ensure this is always called
       setView('waiting');
     } catch (error) {
       console.error('Error joining as receiver:', error);
@@ -160,7 +319,7 @@ function App() {
 
   const handleAction = (move) => {
     setAction(move);
-    socket.emit('gameAction', { code, playerType, action: move });
+    socket.emit('gameAction', { action: move, value: move });
   };
 
   const downloadFile = async () => {
@@ -193,63 +352,85 @@ function App() {
     }
   };
 
+  // Helper to get local IP for QR code
+  const getLocalIp = () => {
+    // Replace this with your actual local IP or fetch dynamically if needed
+    return '192.168.1.38'; // <-- change this to your computer's IP if needed
+  };
+
+  // Enhanced QR code generation with mobile instructions
+  const generateQRCode = () => {
+    if (!code) return null;
+    const port = window.location.port || '3000';
+    const ip = getLocalIp();
+    const baseUrl = `http://${ip}:${port}`;
+    const mobileAppUrl = `${baseUrl}/mobile-app.html?code=${code}&view=receiver`;
+    const receiverUrl = `${baseUrl}/receiver?code=${code}`;
+    
+    return (
+      <div className="qr-section">
+        <h3>📱 Mobile App QR Code</h3>
+        <div className="qr-container">
+          <QRCodeSVG value={mobileAppUrl} size={200} />
+        </div>
+        <div className="mobile-instructions">
+          <p><strong>📱 Scan to install mobile app!</strong></p>
+          <p>• Opens mobile app download page</p>
+          <p>• Install as PWA for app-like experience</p>
+          <p>• All games and features included</p>
+        </div>
+        <button 
+          className="copy-btn"
+          onClick={() => {
+            navigator.clipboard.writeText(mobileAppUrl);
+            alert('Mobile app link copied to clipboard!');
+          }}
+        >
+          📋 Copy Mobile App Link
+        </button>
+        
+        {isMobile && (
+          <div className="mobile-tip">
+            <p>💡 <strong>You're on mobile!</strong> Share this QR code with a friend to play together.</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // HOMEPAGE: beautiful glass, illusion bg, features 2-column, centered
   if (view === 'home') return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center'}}>
-      <div className="glass" style={{maxWidth:'520px',marginTop:'6em',marginBottom:'2em',width:'100%'}}>
-        <h1 style={{fontSize:'2.5em',margin:'0 auto',textAlign:'center',marginBottom:'0.5em'}}>ShareNPlay</h1>
-        <p style={{textAlign:'center',marginBottom:'2em',fontSize:'1.1em',color:'#666'}}>Secure file sharing with fun mini-games</p>
-        
-        <div style={{display:'flex',justifyContent:'center',gap:'2em',margin:'2em 0'}}>
+      <div className="glass home-glass">
+        <h1 className="home-title">ShareNPlay</h1>
+        <p className="home-subtitle">Secure file sharing with fun mini-games</p>
+        <div className="home-btn-group">
           <button 
             onClick={() => setView('sender')}
-            style={{
-              padding: '1em 2em',
-              fontSize: '1.2em',
-              backgroundColor: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              minWidth: '120px'
-            }}
+            className="home-btn send-btn"
           >
             📤 Send File
           </button>
           <button 
             onClick={() => setView('receiver')}
-            style={{
-              padding: '1em 2em',
-              fontSize: '1.2em',
-              backgroundColor: '#2196F3',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              minWidth: '120px'
-            }}
+            className="home-btn receive-btn"
           >
             📥 Receive File
           </button>
         </div>
-        
-        <div style={{textAlign:'center',marginTop:'3em',color:'#888',fontSize:'0.9em'}}>
+        <div className="home-info">
           <p>Share files securely with a 6-digit code</p>
           <p>Play mini-games while waiting • Winner gets a dare!</p>
+          <p className="home-mobile-note">
+            <b>Works on mobile and desktop!</b><br/>
+            You can <b>send</b> or <b>receive</b> files from any device.
+          </p>
         </div>
-        
-        <div style={{display:'flex',justifyContent:'center',gap:'2em',flexWrap:'wrap',marginTop:'2em'}}>
-          <ul className="features-list" style={{flex:'1 1 180px',minWidth:'180px',maxWidth:'220px',paddingRight:'1em'}}>
-            {FEATURES.slice(0, Math.ceil(FEATURES.length/2)).map((f,i) => (
-              <li key={i} style={{cursor:'pointer',alignItems:'center'}}>
-                <span style={{fontSize:'1.2em',marginRight:'0.6em',display:'inline-block',width:'1.5em',textAlign:'center'}}>{f.icon}</span> <span style={{flex:1}}>{f.text}</span>
-              </li>
-            ))}
-          </ul>
-          <ul className="features-list" style={{flex:'1 1 180px',minWidth:'180px',maxWidth:'220px',paddingLeft:'1em'}}>
-            {FEATURES.slice(Math.ceil(FEATURES.length/2)).map((f,i) => (
-              <li key={i+Math.ceil(FEATURES.length/2)} style={{cursor:'pointer',alignItems:'center'}}>
-                <span style={{fontSize:'1.2em',marginRight:'0.6em',display:'inline-block',width:'1.5em',textAlign:'center'}}>{f.icon}</span> <span style={{flex:1}}>{f.text}</span>
+        <div className="home-features">
+          <ul className="features-list">
+            {FEATURES.map((f,i) => (
+              <li key={i}>
+                <span className="animated-icon">{f.icon}</span> <span>{f.text}</span>
               </li>
             ))}
           </ul>
@@ -312,9 +493,97 @@ function App() {
           <div style={{textAlign:'center'}}>
             <div style={{marginBottom:'2em'}}>
               <h3 style={{color:'#28a745',marginBottom:'0.5em'}}>✅ File Uploaded!</h3>
-              <div style={{fontSize:'2em',fontWeight:'bold',color:'#007bff',marginBottom:'0.5em'}}>{code}</div>
+              <div className="code-display" style={{fontSize:'2em',fontWeight:'bold',color:'#007bff',marginBottom:'0.5em'}}>{code}</div>
               <p style={{color:'#6c757d',marginBottom:'1em'}}>Share this code with the receiver</p>
-              <QRCodeSVG value={code} size={120} style={{margin:'0 auto'}} />
+              <div className="qr-container">
+                <QRCodeSVG 
+                  value={`http://192.168.1.38:3002${window.location.pathname}?code=${code}&view=receiver`} 
+                  size={120} 
+                  style={{margin:'0 auto'}} 
+                />
+              </div>
+              <p style={{color:'#28a745',fontSize:'0.9em',marginTop:'0.5em',fontStyle:'italic'}}>
+                📱 Scan this QR code to open receiver page directly!
+              </p>
+              <button 
+                onClick={() => {
+                  const directLink = `http://192.168.1.38:3002${window.location.pathname}?code=${code}&view=receiver`;
+                  navigator.clipboard.writeText(directLink);
+                  alert('Direct link copied to clipboard!');
+                }}
+                style={{
+                  padding: '0.5em 1em',
+                  fontSize: '0.9em',
+                  backgroundColor: '#17a2b8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  marginTop: '0.5em'
+                }}
+              >
+                📋 Copy Direct Link
+              </button>
+              
+              {/* Mobile App Download Section */}
+              <div style={{
+                marginTop: '2em',
+                padding: '1.5em',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6'
+              }}>
+                <h4 style={{textAlign: 'center', marginBottom: '1em', color: '#333'}}>📱 Mobile App Access</h4>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1em'}}>
+                  <div style={{textAlign: 'center'}}>
+                    <p style={{fontSize: '0.9em', color: '#666', marginBottom: '0.5em'}}>
+                      <strong>🎮 Play in Browser:</strong> Scan QR code above - no download needed!
+                    </p>
+                  </div>
+                  <div style={{textAlign: 'center'}}>
+                    <button 
+                      onClick={() => {
+                        if ('serviceWorker' in navigator) {
+                          navigator.serviceWorker.register('/service-worker.js');
+                          alert('PWA installation available! Look for "Add to Home Screen" in your browser menu.');
+                        } else {
+                          alert('PWA not supported in this browser. Use the QR code to play in browser!');
+                        }
+                      }}
+                      style={{
+                        padding: '0.5em 1em',
+                        fontSize: '0.9em',
+                        backgroundColor: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        marginRight: '0.5em'
+                      }}
+                    >
+                      📱 Install PWA
+                    </button>
+                    <a 
+                      href="https://github.com/Rajketha/ShareNPlay/archive/refs/heads/main.zip"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '0.5em 1em',
+                        fontSize: '0.9em',
+                        backgroundColor: '#6c757d',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        textDecoration: 'none',
+                        display: 'inline-block'
+                      }}
+                    >
+                      💻 Download Desktop
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div style={{marginBottom:'1.5em'}}>
@@ -601,18 +870,79 @@ function App() {
     </div>
   );
   if (view === 'waiting') return (
-    <div style={{padding:40}}>
+    <div className="waiting-screen" style={{padding:40, textAlign:'center'}}>
       <h2>Waiting for other player to join...</h2>
-      <p><b>Player Type:</b> {playerType}</p>
-      <p><b>Code:</b> {code}</p>
-      <p><b>Dare:</b> {dare}</p>
-      {waitingHint && <div style={{color:'#e67e22',marginTop:16}}>{waitingHint}</div>}
+      
+      {/* Connection Status */}
+      <div style={{
+        margin: '1em 0',
+        padding: '0.5em',
+        borderRadius: '8px',
+        backgroundColor: connectionStatus === 'connected' ? '#d4edda' : 
+                         connectionStatus === 'error' ? '#f8d7da' : '#fff3cd',
+        color: connectionStatus === 'connected' ? '#155724' : 
+               connectionStatus === 'error' ? '#721c24' : '#856404',
+        border: `1px solid ${connectionStatus === 'connected' ? '#c3e6cb' : 
+                           connectionStatus === 'error' ? '#f5c6cb' : '#ffeaa7'}`
+      }}>
+        <strong>Connection Status:</strong> {
+          connectionStatus === 'connected' ? '✅ Connected' :
+          connectionStatus === 'error' ? '❌ Connection Error' :
+          connectionStatus === 'disconnected' ? '❌ Disconnected' :
+          '⏳ Connecting...'
+        }
+      </div>
+      
+      <div className="score-display">
+        <div><b>Player Type:</b> {playerType}</div>
+        <div><b>Code:</b> {code}</div>
+      </div>
+      <div style={{margin:'1em 0', padding:'1em', backgroundColor:'#f8f9fa', borderRadius:'8px'}}>
+        <b>Your Dare:</b> {dare}
+      </div>
+      {waitingHint && <div style={{color:'#e67e22',marginTop:16, padding:'1em', backgroundColor:'#fff3cd', borderRadius:'8px'}}>{waitingHint}</div>}
       <div style={{marginTop:24, color:'#888', fontSize:'0.98em'}}>
         <ul style={{paddingLeft:20}}>
           <li>Both sender and receiver must join with the same code.</li>
           <li>Both must select or enter a dare and click Join.</li>
           <li>If stuck, reload and try again in a new tab/window.</li>
+          <li>Make sure both devices are on the same WiFi network.</li>
         </ul>
+      </div>
+      
+      {/* Mobile-specific instructions */}
+      {/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && (
+        <div style={{
+          marginTop: '1em',
+          padding: '1em',
+          backgroundColor: '#e3f2fd',
+          borderRadius: '8px',
+          border: '1px solid #bbdefb'
+        }}>
+          <h4 style={{color: '#1976d2', marginBottom: '0.5em'}}>📱 Mobile User Tips:</h4>
+          <ul style={{textAlign: 'left', paddingLeft: '1.5em', color: '#1976d2'}}>
+            <li>Make sure the desktop user has also joined with code: <strong>{code}</strong></li>
+            <li>Both users must enter a dare and click "Join Game"</li>
+            <li>If waiting too long, ask the desktop user to refresh their page</li>
+          </ul>
+        </div>
+      )}
+      
+      {/* Debug Information */}
+      <div style={{
+        marginTop: '1em',
+        padding: '1em',
+        backgroundColor: '#f8f9fa',
+        borderRadius: '8px',
+        border: '1px solid #dee2e6',
+        fontSize: '0.9em'
+      }}>
+        <h4 style={{color: '#6c757d', marginBottom: '0.5em'}}>🔧 Debug Info:</h4>
+        <p><strong>Player Type:</strong> {playerType}</p>
+        <p><strong>Room Code:</strong> {code}</p>
+        <p><strong>Connection Status:</strong> {connectionStatus}</p>
+        <p><strong>Socket ID:</strong> {socket?.id || 'Not connected'}</p>
+        <p><strong>Transport:</strong> {socket?.io?.engine?.transport?.name || 'Unknown'}</p>
       </div>
     </div>
   );
@@ -620,27 +950,54 @@ function App() {
     <div style={{padding:40}}>
       <h2>Round {round}</h2>
       <div>Dares: Sender: {dares.sender} | Receiver: {dares.receiver}</div>
-      <div>Scores: Sender {scores.sender} - Receiver {scores.receiver}</div>
+              <div>Scores: Player 1 {scores.player1} - Player 2 {scores.player2}</div>
       
       {/* Game-specific UI */}
       <div style={{marginTop: '2em'}}>
         
-        {(fileInfo?.gameSuggestion?.game === 'rockPaperScissors' || fileInfo?.gameSuggestion?.game === 'rps') && (
+        {currentGame === 'rockPaperScissors' && (
           <div>
-            <h3>Rock Paper Scissors</h3>
-            <div>
-              <button onClick={() => handleAction('rock')} disabled={!!action}>Rock</button>
-              <button onClick={() => handleAction('paper')} disabled={!!action}>Paper</button>
-              <button onClick={() => handleAction('scissors')} disabled={!!action}>Scissors</button>
+            <h3>Rock Paper Scissors - Round {round}</h3>
+            {gameResult && (
+              <div style={{margin:'1em 0',padding:'1em',background:'#f8f9fa',borderRadius:'8px',border:'1px solid #dee2e6'}}>
+                <p><strong>Your choice:</strong> {playerType === 'sender' ? gameResult.player1?.choice : gameResult.player2?.choice}</p>
+                <p><strong>Opponent's choice:</strong> {playerType === 'sender' ? gameResult.player2?.choice : gameResult.player1?.choice}</p>
+                <p><strong>Winner:</strong> {gameResult.winner === 'tie' ? 'Tie' : (gameResult.winner === playerType ? 'You' : 'Opponent')}</p>
+                <p><strong>Your score:</strong> {playerType === 'sender' ? scores.player1 : scores.player2}</p>
+                <p><strong>Opponent's score:</strong> {playerType === 'sender' ? scores.player2 : scores.player1}</p>
+              </div>
+            )}
+            <div className="game-controls">
+              <button 
+                onClick={() => handleAction('rock')} 
+                disabled={!!action}
+                style={{fontSize:'2em',padding:'1em',minWidth:'80px',minHeight:'80px',margin:'0.5em'}}
+              >
+                🪨
+              </button>
+              <button 
+                onClick={() => handleAction('paper')} 
+                disabled={!!action}
+                style={{fontSize:'2em',padding:'1em',minWidth:'80px',minHeight:'80px',margin:'0.5em'}}
+              >
+                📄
+              </button>
+              <button 
+                onClick={() => handleAction('scissors')} 
+                disabled={!!action}
+                style={{fontSize:'2em',padding:'1em',minWidth:'80px',minHeight:'80px',margin:'0.5em'}}
+              >
+                ✂️
+              </button>
             </div>
           </div>
         )}
         
-        {fileInfo?.gameSuggestion?.game === 'tapWar' && (
+        {currentGame === 'tapWar' && (
           <TapWarGame onResult={handleAction} round={round} socket={socket} code={code} />
         )}
         
-        {fileInfo?.gameSuggestion?.game === 'quickQuiz' && (
+        {currentGame === 'quickQuiz' && (
           <div>
             <h3>Quick Quiz - Round {round}</h3>
             {gameData && (
@@ -649,81 +1006,140 @@ function App() {
                 <p style={{fontSize: '1.1em'}}>{gameData.question}</p>
               </div>
             )}
-            <div style={{marginBottom: '1em'}}>
+            <div className="input-group" style={{marginBottom: '1em'}}>
               <input 
                 placeholder="Type your answer..." 
                 value={action} 
                 onChange={(e) => setAction(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleAction(action)}
-                style={{padding: '0.5em', fontSize: '1em', width: '200px', marginRight: '0.5em'}}
+                style={{padding: '0.8em', fontSize: '1em', width: '100%', marginBottom: '0.5em', boxSizing: 'border-box'}}
               />
               <button 
                 onClick={() => handleAction(action)} 
                 disabled={!action}
-                style={{padding: '0.5em 1em', fontSize: '1em', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px'}}
+                style={{padding: '0.8em 1.5em', fontSize: '1em', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '8px', width: '100%'}}
               >
                 Submit Answer
               </button>
             </div>
-            <div style={{fontSize: '0.9em', color: '#666'}}>
+            <div style={{fontSize: '0.9em', color: '#666', textAlign: 'center'}}>
               Tip: Answer quickly and accurately!
             </div>
           </div>
         )}
         
-        {fileInfo?.gameSuggestion?.game === 'emojiMemory' && (
+        {currentGame === 'emojiMemory' && (
           <EmojiMemoryGame sequence={gameData?.sequence || []} onResult={handleAction} />
         )}
         
-        {fileInfo?.gameSuggestion?.game === 'typingSpeed' && (
+        {currentGame === 'typingSpeed' && (
           <TypingSpeedGame text={gameData?.text || ''} onResult={handleAction} />
         )}
         
-        {fileInfo?.gameSuggestion?.game === 'reactionTime' && (
+        {currentGame === 'reactionTime' && (
           <ReactionTimeGame onResult={handleAction} round={round} />
         )}
         
         {/* Fallback for unknown game types */}
-        {!fileInfo?.gameSuggestion?.game && (
+        {currentGame === '' && (
           <div>
             <h3>Default Game - Rock Paper Scissors</h3>
-            <div>
-              <button onClick={() => handleAction('rock')} disabled={!!action}>Rock</button>
-              <button onClick={() => handleAction('paper')} disabled={!!action}>Paper</button>
-              <button onClick={() => handleAction('scissors')} disabled={!!action}>Scissors</button>
+            <div className="game-controls">
+              <button 
+                onClick={() => handleAction('rock')} 
+                disabled={!!action}
+                style={{fontSize:'2em',padding:'1em',minWidth:'80px',minHeight:'80px',margin:'0.5em'}}
+              >
+                🪨
+              </button>
+              <button 
+                onClick={() => handleAction('paper')} 
+                disabled={!!action}
+                style={{fontSize:'2em',padding:'1em',minWidth:'80px',minHeight:'80px',margin:'0.5em'}}
+              >
+                📄
+              </button>
+              <button 
+                onClick={() => handleAction('scissors')} 
+                disabled={!!action}
+                style={{fontSize:'2em',padding:'1em',minWidth:'80px',minHeight:'80px',margin:'0.5em'}}
+              >
+                ✂️
+              </button>
             </div>
           </div>
         )}
       </div>
       
       {gameResult && (
-        <div style={{marginTop: '2em', padding: '1em', backgroundColor: '#f0f8ff', borderRadius: '8px', textAlign:'center'}}>
+        <div className={`game-result ${gameResult.winner === playerType ? 'win' : gameResult.winner === 'tie' ? '' : 'lose'}`} style={{marginTop: '2em', padding: '1em', backgroundColor: '#f0f8ff', borderRadius: '8px', textAlign:'center'}}>
           <h4>Round Result:</h4>
-          <p>Winner: {gameResult.winner === 'tie' ? 'Tie' : (gameResult.winner === playerType ? 'You' : 'Opponent')}</p>
+          <p style={{fontSize:'1.2em', fontWeight:'bold'}}>Winner: {gameResult.winner === 'tie' ? 'Tie' : (gameResult.winner === playerType ? 'You' : 'Opponent')}</p>
           <p>Reason: {gameResult.reason}</p>
-          <p>Scores: Sender {scores.sender} - Receiver {scores.receiver}</p>
-          {gameResult.winner === playerType && gameResult.winner !== 'tie' && <span style={{fontSize:'2em'}}>🏆</span>}
-          {gameResult.winner !== playerType && gameResult.winner !== 'tie' && <span style={{fontSize:'2em'}}>😢</span>}
-          {gameResult.winner === 'tie' && <span style={{fontSize:'2em'}}>🤝</span>}
+          <div className="score-display">
+            <div><b>Player 1:</b> {scores.player1}</div>
+            <div><b>Player 2:</b> {scores.player2}</div>
+          </div>
+          {gameResult.winner === playerType && gameResult.winner !== 'tie' && <span style={{fontSize:'3em'}}>🏆</span>}
+          {gameResult.winner !== playerType && gameResult.winner !== 'tie' && <span style={{fontSize:'3em'}}>😢</span>}
+          {gameResult.winner === 'tie' && <span style={{fontSize:'3em'}}>🤝</span>}
         </div>
       )}
     </div>
   );
   if (view === 'end') {
+    console.log('END SCREEN DEBUG:', {
+      playerType,
+      playerRole,
+      winner: gameWinner?.winner,
+      dares: gameWinner?.dares
+    });
+    // Fallback: if playerRole is not set but playerType is, set playerRole
+    if (!playerRole && playerType) {
+      if (playerType === 'sender') setPlayerRole('player1');
+      else if (playerType === 'receiver') setPlayerRole('player2');
+      // Show loading while setting
+      return (
+        <div style={{padding:40, textAlign:'center'}}>
+          <h2>Game Over!</h2>
+          <div>Loading winner and dare...</div>
+        </div>
+      );
+    }
+    const dareText = gameWinner.dares && (playerRole === 'player1' ? gameWinner.dares.player2 : gameWinner.dares.player1);
+    if (view === 'end' && playerType === 'receiver') {
+      // Remove the alert for receiver debug info
+    }
     return (
       <div style={{padding:40, textAlign:'center'}}>
         <h2>Game Over!</h2>
         <div style={{fontSize:'2em', margin:'1em'}}>
-          {gameWinner.winner === playerType && gameWinner.winner !== 'tie' && <span>🏆 <b>You Win!</b></span>}
-          {gameWinner.winner !== playerType && gameWinner.winner !== 'tie' && <span>😢 <b>You Lose</b></span>}
           {gameWinner.winner === 'tie' && <span>🤝 <b>It&apos;s a Tie!</b></span>}
+          {gameWinner.winner === playerRole && gameWinner.winner !== 'tie' && <span>🏆 <b>You Win!</b></span>}
+          {gameWinner.winner !== playerRole && gameWinner.winner !== 'tie' && <span>😢 <b>You Lose</b></span>}
         </div>
         <div style={{fontSize:'1.2em', margin:'1em 0'}}>
           Final Scores:<br/>
-          <b>Sender:</b> {gameWinner.finalScores ? gameWinner.finalScores.sender : (gameWinner.scores ? gameWinner.scores.sender : 0)} &nbsp; | &nbsp; <b>Receiver:</b> {gameWinner.finalScores ? gameWinner.finalScores.receiver : (gameWinner.scores ? gameWinner.scores.receiver : 0)}
+          <b>Player 1:</b> {gameWinner.finalScores ? gameWinner.finalScores.player1?.score : (gameWinner.scores ? gameWinner.scores.player1 : 0)} &nbsp; | &nbsp; <b>Player 2:</b> {gameWinner.finalScores ? gameWinner.finalScores.player2?.score : (gameWinner.scores ? gameWinner.scores.player2 : 0)}
         </div>
-        <div>Dare: {gameWinner.dares[gameWinner.winner === 'sender' ? 'receiver' : 'sender']}</div>
-        {playerType === 'receiver' && <button onClick={downloadFile} disabled={isDownloading}>Download File</button>}
+        {gameWinner.winner !== 'tie' && gameWinner.winner !== playerRole && (
+          <div>
+            Dare: {gameWinner.dares && gameWinner.dares[playerRole]
+              ? gameWinner.dares[playerRole]
+              : <span style={{color:'#888'}}>No dare available</span>}
+          </div>
+        )}
+        {playerType === 'receiver' && (
+          <>
+            <button onClick={downloadFile} disabled={isDownloading}>Download File</button>
+            <button
+              style={{marginLeft: 12, marginTop: 8}}
+              onClick={() => window.location.reload()}
+            >
+              Go to Home
+            </button>
+          </>
+        )}
         <button onClick={() => window.location.reload()}>Restart</button>
       </div>
     );
@@ -780,16 +1196,34 @@ function TapWarGame({ onResult, round, socket, code }) {
   return (
     <div>
       <h3>Tap War - Tap as fast as you can!</h3>
-      <div>Time left: {timer.toFixed(1)}s</div>
-      <div style={{fontSize:'1.5em',margin:'0.5em 0'}}>Taps: {taps}</div>
-      <button onClick={handleTap} disabled={timer === 0} style={{fontSize:'2em',padding:'1em 2em',margin:'1em 0'}}>
-        {running ? 'TAP!' : 'Start'}
-      </button>
+      <div className="timer">Time left: {timer.toFixed(1)}s</div>
+      <div style={{fontSize:'1.5em',margin:'0.5em 0',textAlign:'center'}}>Taps: {taps}</div>
+      <div className="tap-area">
+        <button 
+          onClick={handleTap} 
+          disabled={timer === 0} 
+          style={{
+            fontSize:'3em',
+            padding:'2em',
+            margin:'1em 0',
+            minWidth:'200px',
+            minHeight:'200px',
+            borderRadius:'50%',
+            backgroundColor: running ? '#dc3545' : '#28a745',
+            border:'none',
+            color:'white',
+            cursor:'pointer'
+          }}
+        >
+          {running ? 'TAP!' : 'START'}
+        </button>
+      </div>
     </div>
   );
 }
 
 function EmojiMemoryGame({ sequence, onResult }) {
+  const emojiSet = ['😀', '😎', '🎮', '🚀', '⭐', '🎯', '🎪', '🎨'];
   const [input, setInput] = useState([]);
   const [show, setShow] = useState(true);
   useEffect(() => {
@@ -815,13 +1249,29 @@ function EmojiMemoryGame({ sequence, onResult }) {
     <div>
       <h3>Emoji Memory</h3>
       {show ? (
-        <div style={{fontSize:'2em'}}>{sequence.join(' ')}</div>
+        <div style={{fontSize:'2em', textAlign:'center', padding:'1em'}}>{sequence.join(' ')}</div>
       ) : (
         <div>
-          <div>Repeat the sequence:</div>
-          <div style={{fontSize:'2em'}}>
-            {['😀','🎉','🌟','🎮','🍕','🚀','🎵','🌈'].map(e => (
-              <span key={e} style={{cursor:'pointer',margin:'0 0.2em',border:'1px solid #ccc',padding:'0.2em 0.4em',borderRadius:4}} onClick={handleEmojiClick}>{e}</span>
+          <div style={{textAlign:'center', marginBottom:'1em'}}>Repeat the sequence:</div>
+          <div className="emoji-grid" style={{fontSize:'2em'}}>
+            {emojiSet.map(e => (
+              <button 
+                key={e} 
+                style={{
+                  cursor:'pointer',
+                  margin:'0.2em',
+                  border:'2px solid #007bff',
+                  padding:'0.5em',
+                  borderRadius:'8px',
+                  backgroundColor:'white',
+                  fontSize:'1.5em',
+                  minHeight:'60px',
+                  minWidth:'60px'
+                }} 
+                onClick={handleEmojiClick}
+              >
+                {e}
+              </button>
             ))}
           </div>
           <div>Your input: {input.join(' ')}</div>
@@ -856,16 +1306,39 @@ function TypingSpeedGame({ text, onResult }) {
   return (
     <div>
       <h3>Typing Speed</h3>
-      <div style={{marginBottom:'1em',fontStyle:'italic',color:'#666'}}>{text}</div>
-      <textarea 
-        value={input} 
-        onChange={handleChange} 
-        disabled={done} 
-        rows={3} 
-        style={{width:'100%'}}
-        placeholder="Start typing here..."
-      />
-      {done && <div style={{color: '#28a745', fontWeight: 'bold'}}>✅ Done! WPM sent.</div>}
+      <div style={{marginBottom:'1em',fontStyle:'italic',color:'#666',textAlign:'center',padding:'1em',backgroundColor:'#f9f9f9',borderRadius:'8px'}}>{text}</div>
+      <div className="typing-area">
+        <textarea 
+          value={input} 
+          onChange={handleChange} 
+          disabled={done} 
+          rows={4} 
+          style={{
+            width:'100%',
+            padding:'1em',
+            fontSize:'1.1em',
+            borderRadius:'8px',
+            border:'2px solid #007bff',
+            resize:'none',
+            boxSizing:'border-box'
+          }}
+          placeholder="Start typing here..."
+        />
+      </div>
+      {done && (
+        <div style={{
+          color: '#28a745', 
+          fontWeight: 'bold',
+          textAlign:'center',
+          padding:'0.5em',
+          backgroundColor:'#28a745',
+          color:'white',
+          borderRadius:'8px',
+          marginTop:'1em'
+        }}>
+          ✅ Done! WPM sent.
+        </div>
+      )}
     </div>
   );
 }
@@ -900,12 +1373,39 @@ function ReactionTimeGame({ onResult, round }) {
   return (
     <div>
       <h3>Reaction Time</h3>
-      <div style={{margin:'1em 0',height:40,background:ready?'#4CAF50':'#f44336',color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.2em',borderRadius:8}}>
+      <div className="reaction-area" style={{
+        margin:'1em 0',
+        height:120,
+        background:ready?'#4CAF50':'#f44336',
+        color:'#fff',
+        display:'flex',
+        alignItems:'center',
+        justifyContent:'center',
+        fontSize:'2em',
+        borderRadius:12,
+        fontWeight:'bold'
+      }}>
         {ready ? 'CLICK!' : 'Wait for green...' }
       </div>
-      <button onClick={handleClick} disabled={!ready || done} style={{fontSize:'1.5em',padding:'1em 2em'}}>
-        {done ? 'Done!' : 'Click Me!'}
-      </button>
+      <div style={{textAlign:'center'}}>
+        <button 
+          onClick={handleClick} 
+          disabled={!ready || done} 
+          style={{
+            fontSize:'2em',
+            padding:'1.5em 3em',
+            minWidth:'200px',
+            minHeight:'80px',
+            borderRadius:'12px',
+            backgroundColor: ready ? '#28a745' : '#6c757d',
+            border:'none',
+            color:'white',
+            cursor: ready ? 'pointer' : 'not-allowed'
+          }}
+        >
+          {done ? 'Done!' : 'Click Me!'}
+        </button>
+      </div>
     </div>
   );
 } 
