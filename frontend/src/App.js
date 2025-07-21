@@ -920,21 +920,21 @@ function App() {
       )}
       
       {/* Debug Information */}
-      <div style={{
-        marginTop: '1em',
-        padding: '1em',
-        backgroundColor: '#f8f9fa',
-        borderRadius: '8px',
-        border: '1px solid #dee2e6',
-        fontSize: '0.9em'
-      }}>
-        <h4 style={{color: '#6c757d', marginBottom: '0.5em'}}>🔧 Debug Info:</h4>
-        <p><strong>Player Type:</strong> {playerType}</p>
-        <p><strong>Room Code:</strong> {code}</p>
-        <p><strong>Connection Status:</strong> {connectionStatus}</p>
-        <p><strong>Socket ID:</strong> {socket?.id || 'Not connected'}</p>
-        <p><strong>Transport:</strong> {socket?.io?.engine?.transport?.name || 'Unknown'}</p>
-      </div>
+      {/* <div style={{
+      marginTop: '1em',
+      padding: '1em',
+      backgroundColor: '#f8f9fa',
+      borderRadius: '8px',
+      border: '1px solid #dee2e6',
+      fontSize: '0.9em'
+    }}>
+      <h4 style={{color: '#6c757d', marginBottom: '0.5em'}}>🔧 Debug Info:</h4>
+      <p><strong>Player Type:</strong> {playerType}</p>
+      <p><strong>Room Code:</strong> {code}</p>
+      <p><strong>Connection Status:</strong> {connectionStatus}</p>
+      <p><strong>Socket ID:</strong> {socket?.id || 'Not connected'}</p>
+      <p><strong>Transport:</strong> {socket?.io?.engine?.transport?.name || 'Unknown'}</p>
+    </div> */}
     </div>
   );
   if (view === 'game') return (
