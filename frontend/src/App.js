@@ -40,6 +40,9 @@ console.error = function (...args) {
   originalConsoleError.apply(console, args);
 };
 
+const LAN_IP = "192.168.1.38"; // <-- Replace with your actual LAN IP
+const FRONTEND_PORT = "3002";  // <-- Replace with your frontend port if different
+
 function App() {
   const [view, setView] = useState('home');
   const [file, setFile] = useState(null);
@@ -78,6 +81,20 @@ function App() {
   // Add state for playerMap
   const [playerMap, setPlayerMap] = useState({});
   const [playerRole, setPlayerRole] = useState(null); // 'player1' or 'player2'
+
+  // Add this effect after all useState declarations and before socket event handlers
+  useEffect(() => {
+    if (
+      socket &&
+      playerMap &&
+      socket.id &&
+      playerMap.player1 &&
+      playerMap.player2
+    ) {
+      if (socket.id === playerMap.player1 && playerRole !== 'player1') setPlayerRole('player1');
+      else if (socket.id === playerMap.player2 && playerRole !== 'player2') setPlayerRole('player2');
+    }
+  }, [socket, playerMap, playerRole]);
 
   // Fetch dare categories on mount
   useEffect(() => {
@@ -203,16 +220,6 @@ function App() {
       // Update fileInfo with game suggestion
       setFileInfo(prev => prev ? { ...prev, gameSuggestion: { game: mappedGame } } : { gameSuggestion: { game: mappedGame } });
       console.log('Game started:', mappedGame, gameData); // Debug log
-      if (!playerRole) {
-        if (playerMap && socket && socket.id) {
-          if (socket.id === playerMap.player1) setPlayerRole('player1');
-          else if (socket.id === playerMap.player2) setPlayerRole('player2');
-        } else if (playerType === 'sender') {
-          setPlayerRole('player1');
-        } else if (playerType === 'receiver') {
-          setPlayerRole('player2');
-        }
-      }
     });
     s.on('roundResult', ({ result, scores, round, playerMap }) => {
       if (!result || !scores || !round) {
@@ -224,24 +231,8 @@ function App() {
       setScores(scores);
       setRound(round);
       setPlayerMap(playerMap);
-      // Determine playerRole on first roundResult
-      if (!playerRole && playerMap && socket && socket.id && playerMap.player1 && playerMap.player2) {
-        if (socket.id === playerMap.player1) setPlayerRole('player1');
-        else if (socket.id === playerMap.player2) setPlayerRole('player2');
-      }
     });
     s.on('gameEnd', ({ winner, finalScores, scores, dares }) => {
-      // If playerRole is not set, try to infer it from playerMap and socket.id, or fallback to playerType
-      if (!playerRole) {
-        if (playerMap && socket && socket.id) {
-          if (socket.id === playerMap.player1) setPlayerRole('player1');
-          else if (socket.id === playerMap.player2) setPlayerRole('player2');
-        } else if (playerType === 'sender') {
-          setPlayerRole('player1');
-        } else if (playerType === 'receiver') {
-          setPlayerRole('player2');
-        }
-      }
       console.log('Game end received:', { winner, finalScores, scores, dares });
       setGameWinner({ winner, finalScores, scores, dares });
       setView('end');
@@ -313,7 +304,7 @@ function App() {
       setView('waiting');
     } catch (error) {
       console.error('Error joining as receiver:', error);
-      setError('Failed to join game. Please check the code and try again.');
+      setError('The sender has not started the game yet. Please wait for the sender to join first.');
     }
   };
 
@@ -497,7 +488,7 @@ function App() {
               <p style={{color:'#6c757d',marginBottom:'1em'}}>Share this code with the receiver</p>
               <div className="qr-container">
                 <QRCodeSVG 
-                  value={`http://192.168.1.38:3002${window.location.pathname}?code=${code}&view=receiver`} 
+                  value={`http://${LAN_IP}:${FRONTEND_PORT}${window.location.pathname}?code=${code}&view=receiver`} 
                   size={120} 
                   style={{margin:'0 auto'}} 
                 />
@@ -507,7 +498,7 @@ function App() {
               </p>
               <button 
                 onClick={() => {
-                  const directLink = `http://192.168.1.38:3002${window.location.pathname}?code=${code}&view=receiver`;
+                  const directLink = `http://${LAN_IP}:${FRONTEND_PORT}${window.location.pathname}?code=${code}&view=receiver`;
                   navigator.clipboard.writeText(directLink);
                   alert('Direct link copied to clipboard!');
                 }}
@@ -962,7 +953,13 @@ function App() {
               <div style={{margin:'1em 0',padding:'1em',background:'#f8f9fa',borderRadius:'8px',border:'1px solid #dee2e6'}}>
                 <p><strong>Your choice:</strong> {playerType === 'sender' ? gameResult.player1?.choice : gameResult.player2?.choice}</p>
                 <p><strong>Opponent's choice:</strong> {playerType === 'sender' ? gameResult.player2?.choice : gameResult.player1?.choice}</p>
-                <p><strong>Winner:</strong> {gameResult.winner === 'tie' ? 'Tie' : (gameResult.winner === playerType ? 'You' : 'Opponent')}</p>
+                <p><strong>Winner:</strong> {
+  !playerRole
+    ? '...'
+    : gameResult.winner === 'tie'
+      ? 'Tie'
+      : (gameResult.winner === playerRole ? 'You' : 'Opponent')
+}</p>
                 <p><strong>Your score:</strong> {playerType === 'sender' ? scores.player1 : scores.player2}</p>
                 <p><strong>Opponent's score:</strong> {playerType === 'sender' ? scores.player2 : scores.player1}</p>
               </div>
@@ -1071,17 +1068,19 @@ function App() {
         )}
       </div>
       
-      {gameResult && (
-        <div className={`game-result ${gameResult.winner === playerType ? 'win' : gameResult.winner === 'tie' ? '' : 'lose'}`} style={{marginTop: '2em', padding: '1em', backgroundColor: '#f0f8ff', borderRadius: '8px', textAlign:'center'}}>
+      {gameResult && playerRole && (
+        <div className={`game-result ${gameResult.winner === playerRole ? 'win' : gameResult.winner === 'tie' ? '' : 'lose'}`} style={{marginTop: '2em', padding: '1em', backgroundColor: '#f0f8ff', borderRadius: '8px', textAlign:'center'}}>
           <h4>Round Result:</h4>
-          <p style={{fontSize:'1.2em', fontWeight:'bold'}}>Winner: {gameResult.winner === 'tie' ? 'Tie' : (gameResult.winner === playerType ? 'You' : 'Opponent')}</p>
+          <p style={{fontSize:'1.2em', fontWeight:'bold'}}>
+            Winner: {gameResult.winner === 'tie' ? 'Tie' : (gameResult.winner === playerRole ? 'You' : 'Opponent')}
+          </p>
           <p>Reason: {gameResult.reason}</p>
           <div className="score-display">
             <div><b>Player 1:</b> {scores.player1}</div>
             <div><b>Player 2:</b> {scores.player2}</div>
           </div>
-          {gameResult.winner === playerType && gameResult.winner !== 'tie' && <span style={{fontSize:'3em'}}>🏆</span>}
-          {gameResult.winner !== playerType && gameResult.winner !== 'tie' && <span style={{fontSize:'3em'}}>😢</span>}
+          {gameResult.winner === playerRole && gameResult.winner !== 'tie' && <span style={{fontSize:'3em'}}>🏆</span>}
+          {gameResult.winner !== playerRole && gameResult.winner !== 'tie' && <span style={{fontSize:'3em'}}>😢</span>}
           {gameResult.winner === 'tie' && <span style={{fontSize:'3em'}}>🤝</span>}
         </div>
       )}
