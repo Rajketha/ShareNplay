@@ -1,12 +1,14 @@
 # Dependencies
 node_modules/
 */node_modules/
+!/portable-node/node_modules/
 
 # Production builds
 build/
 dist/
 */build/
 */dist/
+!/frontend/build/
 
 # Environment variables
 .env
