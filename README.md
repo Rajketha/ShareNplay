@@ -98,9 +98,9 @@ This project includes a **portable Node.js** setup, so you do NOT need to instal
 
 ---
 
-## Notes
+## Gameplay Notes
 
-- **No need to install Node.js or npm!**
+- **Game End Condition:** The game now ends as soon as any player reaches 2 points, or if the maximum number of rounds is reached. The winner is determined immediately and the game will not continue to further rounds once this condition is met.
 - The portable Node.js binary is included in `portable-node/`.
 - If you see any errors, check the output in the command windows for details.
 - If you want to update dependencies, just re-run the batch file.
