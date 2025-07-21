@@ -1,5 +1,71 @@
 # ShareNPlay 🎮
 
+---
+
+## 🛠️ Getting Started: Install Git, Clone, and Run
+
+### 1. Install Git (Windows)
+
+**Option A: Using Windows Package Manager (winget)**
+```
+winget install --id Git.Git -e --source winget
+```
+
+**Option B: Using Chocolatey**
+```
+choco install git -y
+```
+
+**Option C: Manual Download**
+- Download the installer from: https://git-scm.com/download/win
+- Run the installer and follow the prompts.
+
+**Verify Installation:**
+```
+git --version
+```
+You should see the installed Git version.
+
+---
+
+### 2. Clone the Repository (Recommended)
+
+> **Do NOT use the GitHub "Download ZIP" button for this project.**
+> Large files like `node.exe` may become corrupted in ZIP downloads. Always use `git clone` for a complete, working copy.
+
+Open Command Prompt or PowerShell and run:
+```
+git clone https://github.com/Rajketha/ShareNPlay.git
+```
+
+---
+
+### 3. Run the Project (Windows)
+
+1. Open the cloned `ShareNPlay` folder.
+2. Double-click `CREATE-PORTABLE-SHORTCUT.bat`.
+   - This will:
+     - Kill any running Node.js servers
+     - Install all backend and frontend dependencies
+     - Start both backend and frontend servers in new windows
+     - Pause after each step so you can see progress and errors
+3. Open your browser and go to:
+   - Frontend: [http://localhost:3002](http://localhost:3002)
+   - Backend API: [http://localhost:5000](http://localhost:5000)
+
+---
+
+### 4. Troubleshooting
+- If you see a corrupted or missing `node.exe` after downloading as ZIP, delete it and re-clone the repository using `git clone` as above.
+- If you see errors about Git LFS, install it from https://git-lfs.github.com/ and run:
+  ```
+  git lfs install
+  git lfs pull
+  ```
+- For non-Windows users: Install Node.js manually and use standard npm commands.
+
+---
+
 A real-time multiplayer mini-games platform with **file sharing capabilities** built with React and Node.js.
 
 ## 🎯 Features
